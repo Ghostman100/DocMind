@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "docmind"
+version = "1.0.0"
+description = "RAG система для загрузки документов и семантического поиска"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+pydantic = "^2.10.0"
+pydantic-settings = "^2.7.0"
+python-dotenv = "^1.0.0"
+python-multipart = "^0.0.18"
+
+# ML библиотеки - используем более гибкие версии
+qdrant-client = "^1.12.0"
+sentence-transformers = "^3.3.0"
+
+# NumPy - позволяем Poetry выбрать совместимую версию
+numpy = ">=1.26"
+
+# PyTorch CPU-only для экономии места (~2GB экономии)
+torch = {version = "^2.5.0", source = "pytorch-cpu"}
+torchvision = {version = "^0.20.0", source = "pytorch-cpu"}
+torchaudio = {version = "^2.5.0", source = "pytorch-cpu"}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+black = "^24.0.0"
+ruff = "^0.8.0"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
