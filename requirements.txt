@@ -1,10 +1,21 @@
+# FastAPI и веб-сервер
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
+python-multipart==0.0.18
+
+# ML и векторы
 sentence-transformers==3.3.1
 qdrant-client==1.12.1
+
+# PyTorch CPU-only (значительно меньше размер)
+# Для установки выполните:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
+
+# Научные библиотеки
 numpy==2.2.1
-python-multipart==0.0.18

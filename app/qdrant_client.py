@@ -136,11 +136,12 @@ class QdrantService:
                     )
                 ]
             )
-        )
+        ).points
 
         # Форматировать результаты
         formatted_results = []
         for result in results:
+            # print(r)
             formatted_results.append({
                 "text": result.payload.get("text", ""),
                 "score": result.score,

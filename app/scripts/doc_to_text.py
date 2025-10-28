@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 
 
-def extract_text_from_file(file_path: str) -> dict:
+def extract_text_from_file(file_path: str):
     """
     Извлекает текст из файла
 

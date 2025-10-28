@@ -25,10 +25,46 @@ DocMind - это RAG (Retrieval-Augmented Generation) система для за
 
 ## Установка
 
-### 1. Клонирование и установка зависимостей
+### Вариант 1: Poetry (рекомендуется)
+
+Poetry автоматически управляет зависимостями и экономит место, избегая дубликатов пакетов.
+
+```bash
+# Установка Poetry (если еще не установлен)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Установка зависимостей
+cd DocMind
+poetry install
+
+# Активация виртуального окружения
+poetry shell
+
+# Или запуск без активации
+poetry run uvicorn app.main:app --reload
+```
+
+**Преимущества Poetry:**
+- Автоматически устанавливает CPU-only версию PyTorch (~2GB экономии)
+- Избегает дубликатов пакетов (nvidia, cuda и т.д.)
+- Управляет версиями зависимостей
+- Создает lock-файл для воспроизводимости
+
+### Вариант 2: pip + venv
 
 ```bash
 cd DocMind
+
+# Создание виртуального окружения
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# или
+venv\Scripts\activate  # Windows
+
+# Установка PyTorch CPU-only
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Установка остальных зависимостей
 pip install -r requirements.txt
 ```
 

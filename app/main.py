@@ -233,13 +233,43 @@ async def query_documents(request: QueryRequest):
 
 
 @app.post("/test", response_model=IngestResponse, tags=["Documents"])
-async def test_ingest_document(request):
-    text = extract_text_from_file('test.txt')
+async def test_ingest_document():
+    """
+    Тестовый endpoint для загрузки test.docx
 
-    req = IngestRequest(
-        document_name=request.document_name,
-        text=text,
-    )
+    Извлекает текст из test.docx и загружает его в систему
+    """
+    try:
+        # Извлечь текст из test.docx
+        text = extract_text_from_file('test.docx')
+
+        if not text or not text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to extract text from test.docx or file is empty"
+            )
+
+        # Создать запрос для ingest
+        ingest_request = IngestRequest(
+            document_name="test.docx",
+            text=text
+        )
+
+        # Вызвать основной endpoint для загрузки
+        return await ingest_document(ingest_request)
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="test.docx file not found"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in test_ingest_document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process test.docx: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
