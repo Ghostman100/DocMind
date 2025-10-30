@@ -104,5 +104,55 @@ class HealthResponse(BaseModel):
 
     status: str
     qdrant_connected: bool
-    embedding_model: str
+    embedding_models: List[str] = Field(
+        ...,
+        description="Список загруженных моделей embeddings"
+    )
+    default_embedding_model: str = Field(
+        ...,
+        description="Модель по умолчанию"
+    )
     chunking_strategy: str
+
+
+class EmbedRequest(BaseModel):
+    """Модель запроса для получения embeddings"""
+
+    model: str = Field(
+        ...,
+        description="Название модели для создания embeddings",
+        min_length=1
+    )
+    text: str = Field(
+        ...,
+        description="Текст для кодирования",
+        min_length=1
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "model": "deepvk/USER-bge-m3",
+                    "text": "Какой-то текст для получения эмбеддинга"
+                }
+            ]
+        }
+    }
+
+
+class EmbedResponse(BaseModel):
+    """Модель ответа с embeddings"""
+
+    embedding: List[float] = Field(
+        ...,
+        description="Вектор embeddings"
+    )
+    model: str = Field(
+        ...,
+        description="Название использованной модели"
+    )
+    dimension: int = Field(
+        ...,
+        description="Размерность вектора embeddings"
+    )

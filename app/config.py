@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Literal
+from typing import Literal, List
 
 
 class Settings(BaseSettings):
@@ -8,10 +8,20 @@ class Settings(BaseSettings):
     # Настройки Qdrant
     qdrant_url: str
     qdrant_api_key: str | None = None
-    collection_name: str = "documents"  # Единая коллекция для всех документов
+    collection_name: str = "documents2"  # Единая коллекция для всех документов
 
-    # Настройки модели для embeddings
-    embedding_model: str = "intfloat/multilingual-e5-large"
+    # Настройки моделей для embeddings
+    embedding_model: str = "intfloat/multilingual-e5-large"  # Для обратной совместимости
+
+    # Модели которые нужно загрузить при старте (всегда в RAM)
+    embedding_models: List[str] = [
+        "intfloat/multilingual-e5-large",
+        "intfloat/multilingual-e5-base",
+        "deepvk/USER-bge-m3"
+    ]
+
+    # Модель по умолчанию для /ingest и /query эндпоинтов
+    default_embedding_model: str = "deepvk/USER-bge-m3"
 
     # Стратегия чанкинга: "paragraph" или "recursive"
     chunking_strategy: Literal["paragraph", "recursive"] = "paragraph"

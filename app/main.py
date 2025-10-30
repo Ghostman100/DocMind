@@ -13,9 +13,11 @@ from .schemas import (
     QueryResponse,
     HealthResponse,
     SearchResult,
+    EmbedRequest,
+    EmbedResponse,
 )
-from .qdrant_client import get_qdrant_service
-from .embeddings import get_embedding_service
+from .qdrant_client import QdrantService
+from .embeddings import get_embedding_registry
 from .chunking import ParagraphChunker, RecursiveChunker
 from .scripts.doc_to_text import extract_text_from_file
 
@@ -29,22 +31,31 @@ logger = logging.getLogger(__name__)
 
 # Глобальные сервисы
 qdrant_service = None
-embedding_service = None
+embedding_registry = None
 chunker = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """События жизненного цикла приложения"""
-    global qdrant_service, embedding_service, chunker
+    global qdrant_service, embedding_registry, chunker
 
     # Запуск
     logger.info("Starting DocMind application...")
     logger.info(f"Chunking strategy: {settings.chunking_strategy}")
 
-    # Инициализация сервисов
-    embedding_service = get_embedding_service()
-    qdrant_service = get_qdrant_service()
+    # Инициализация embedding registry и загрузка моделей
+    logger.info(f"Loading {len(settings.embedding_models)} embedding models...")
+    embedding_registry = get_embedding_registry()
+
+    for model_name in settings.embedding_models:
+        logger.info(f"Registering model: {model_name}")
+        embedding_registry.register_model(model_name)
+
+    logger.info(f"All models loaded. Default model: {settings.default_embedding_model}")
+
+    # Инициализация Qdrant service с registry
+    qdrant_service = QdrantService(embedding_registry)
 
     # Инициализация чанкера на основе конфигурации
     if settings.chunking_strategy == "paragraph":
@@ -110,7 +121,8 @@ async def health_check():
         return HealthResponse(
             status="healthy" if qdrant_connected else "degraded",
             qdrant_connected=qdrant_connected,
-            embedding_model=settings.embedding_model,
+            embedding_models=embedding_registry.list_models(),
+            default_embedding_model=settings.default_embedding_model,
             chunking_strategy=settings.chunking_strategy
         )
     except Exception as e:
@@ -155,12 +167,13 @@ async def ingest_document(request: IngestRequest):
         chunk_texts = [chunk.text for chunk in chunks]
         chunk_metadata = [chunk.metadata for chunk in chunks]
 
-        # Загрузить в Qdrant
+        # Загрузить в Qdrant используя модель по умолчанию
         chunks_count = qdrant_service.ingest_chunks(
             document_id=document_id,
             document_name=request.document_name,
             upload_timestamp=upload_timestamp,
             chunks=chunk_texts,
+            model_name=settings.default_embedding_model,
             metadata=chunk_metadata
         )
 
@@ -198,10 +211,11 @@ async def query_documents(request: QueryRequest):
         logger.info(f"Querying document: {request.document_id}")
         logger.info(f"Query: {request.query}")
 
-        # Поиск в Qdrant с фильтрацией по document_id
+        # Поиск в Qdrant с фильтрацией по document_id, используя модель по умолчанию
         results = qdrant_service.search(
             document_id=request.document_id,
             query=request.query,
+            model_name=settings.default_embedding_model,
             top_k=request.top_k
         )
 
@@ -229,6 +243,52 @@ async def query_documents(request: QueryRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to query documents: {str(e)}"
+        )
+
+
+@app.post("/embed", response_model=EmbedResponse, tags=["Embeddings"])
+async def get_embedding(request: EmbedRequest):
+    """
+    Получить embedding для текста
+
+    Этот endpoint:
+    1. Получает текст и название модели
+    2. Создает embedding используя указанную модель
+    3. Возвращает вектор embedding с метаданными
+    """
+    try:
+        logger.info(f"Creating embedding with model: {request.model}")
+        logger.info(f"Text length: {len(request.text)} characters")
+
+        # Проверить что модель зарегистрирована
+        if not embedding_registry.has_model(request.model):
+            available_models = embedding_registry.list_models()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{request.model}' not available. Available models: {available_models}"
+            )
+
+        # Получить embedding service для модели
+        embedding_service = embedding_registry.get_model(request.model)
+
+        # Создать embedding
+        embedding_vector = embedding_service.encode_single(request.text)
+
+        logger.info(f"Successfully created embedding with dimension {len(embedding_vector)}")
+
+        return EmbedResponse(
+            embedding=embedding_vector.tolist(),
+            model=request.model,
+            dimension=len(embedding_vector)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating embedding: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create embedding: {str(e)}"
         )
 
 

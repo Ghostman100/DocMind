@@ -3,19 +3,23 @@ from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, Fi
 from typing import List, Dict, Any
 import uuid
 from .config import settings
-from .embeddings import get_embedding_service
+from .embeddings import EmbeddingRegistry
 
 
 class QdrantService:
     """Сервис для взаимодействия с векторной базой данных Qdrant"""
 
-    def __init__(self):
-        """Инициализация клиента Qdrant"""
+    def __init__(self, embedding_registry: EmbeddingRegistry):
+        """Инициализация клиента Qdrant
+
+        Args:
+            embedding_registry: Реестр моделей embeddings
+        """
         self.client = QdrantClient(
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key
         )
-        self.embedding_service = get_embedding_service()
+        self.embedding_registry = embedding_registry
         print(f"Connected to Qdrant at {settings.qdrant_url}")
 
         # Убедиться, что единая коллекция существует
@@ -24,20 +28,28 @@ class QdrantService:
     def ensure_collection(self) -> None:
         """
         Убедиться, что единая коллекция существует, создать если не существует
+        Поддерживает несколько named vectors (по одному на модель)
         """
         collections = self.client.get_collections().collections
         collection_names = [col.name for col in collections]
 
         if settings.collection_name not in collection_names:
             print(f"Creating collection: {settings.collection_name}")
-            self.client.create_collection(
-                collection_name=settings.collection_name,
-                vectors_config=VectorParams(
-                    size=self.embedding_service.embedding_dim,
+
+            # Создать named vectors config для всех зарегистрированных моделей
+            vectors_config = {}
+            for model_name in self.embedding_registry.list_models():
+                embedding_service = self.embedding_registry.get_model(model_name)
+                vectors_config[model_name] = VectorParams(
+                    size=embedding_service.embedding_dim,
                     distance=Distance.COSINE
                 )
+
+            self.client.create_collection(
+                collection_name=settings.collection_name,
+                vectors_config=vectors_config
             )
-            print(f"Collection {settings.collection_name} created")
+            print(f"Collection {settings.collection_name} created with {len(vectors_config)} vector configs")
         else:
             print(f"Collection {settings.collection_name} already exists")
 
@@ -47,6 +59,7 @@ class QdrantService:
         document_name: str,
         upload_timestamp: str,
         chunks: List[str],
+        model_name: str,
         metadata: List[Dict[str, Any]] = None
     ) -> int:
         """
@@ -57,17 +70,26 @@ class QdrantService:
             document_name: Название документа
             upload_timestamp: Временная метка загрузки (ISO format)
             chunks: Список текстовых чанков
+            model_name: Название модели для создания embeddings
             metadata: Опциональный список словарей метаданных для каждого чанка
 
         Returns:
             Количество загруженных чанков
+
+        Raises:
+            ValueError: Если модель не найдена в registry
         """
         if not chunks:
             return 0
 
+        # Получить embedding service для модели
+        embedding_service = self.embedding_registry.get_model(model_name)
+        if embedding_service is None:
+            raise ValueError(f"Model {model_name} not found in registry")
+
         # Создать embeddings
-        print(f"Creating embeddings for {len(chunks)} chunks...")
-        embeddings = self.embedding_service.encode_texts(chunks)
+        print(f"Creating embeddings for {len(chunks)} chunks using model {model_name}...")
+        embeddings = embedding_service.encode_texts(chunks)
 
         # Подготовить точки для Qdrant
         points = []
@@ -78,7 +100,8 @@ class QdrantService:
                 "chunk_index": i,
                 "document_id": document_id,
                 "document_name": document_name,
-                "upload_timestamp": upload_timestamp
+                "upload_timestamp": upload_timestamp,
+                "embedding_model": model_name  # Сохранить информацию о модели
             }
 
             # Добавить метаданные чанка если предоставлены
@@ -87,7 +110,7 @@ class QdrantService:
 
             point = PointStruct(
                 id=point_id,
-                vector={settings.embedding_model: embedding.tolist()},
+                vector={model_name: embedding.tolist()},
                 payload=payload
             )
             points.append(point)
@@ -106,6 +129,7 @@ class QdrantService:
         self,
         document_id: str,
         query: str,
+        model_name: str,
         top_k: int = 5
     ) -> List[Dict[str, Any]]:
         """
@@ -114,18 +138,27 @@ class QdrantService:
         Args:
             document_id: Идентификатор документа для поиска
             query: Текст запроса
+            model_name: Название модели для создания query embedding
             top_k: Количество результатов для возврата
 
         Returns:
             Список результатов поиска с текстом и метаданными
+
+        Raises:
+            ValueError: Если модель не найдена в registry
         """
+        # Получить embedding service для модели
+        embedding_service = self.embedding_registry.get_model(model_name)
+        if embedding_service is None:
+            raise ValueError(f"Model {model_name} not found in registry")
+
         # Создать embedding запроса
-        query_embedding = self.embedding_service.encode_single(query)
+        query_embedding = embedding_service.encode_single(query)
 
         # Поиск в Qdrant с фильтрацией по document_id
         results = self.client.query_points(
             collection_name=settings.collection_name,
-            using=settings.embedding_model,
+            using=model_name,
             query=query_embedding.tolist(),
             limit=top_k,
             query_filter=Filter(
@@ -152,15 +185,3 @@ class QdrantService:
             })
 
         return formatted_results
-
-
-# Глобальный экземпляр (паттерн singleton)
-_qdrant_service = None
-
-
-def get_qdrant_service() -> QdrantService:
-    """Получить или создать глобальный экземпляр сервиса Qdrant"""
-    global _qdrant_service
-    if _qdrant_service is None:
-        _qdrant_service = QdrantService()
-    return _qdrant_service
