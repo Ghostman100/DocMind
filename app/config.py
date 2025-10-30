@@ -11,17 +11,17 @@ class Settings(BaseSettings):
     collection_name: str = "documents2"  # Единая коллекция для всех документов
 
     # Настройки моделей для embeddings
-    embedding_model: str = "intfloat/multilingual-e5-large"  # Для обратной совместимости
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"  # Для обратной совместимости
 
     # Модели которые нужно загрузить при старте (всегда в RAM)
     embedding_models: List[str] = [
-        "intfloat/multilingual-e5-large",
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         "intfloat/multilingual-e5-base",
         "deepvk/USER-bge-m3"
     ]
 
     # Модель по умолчанию для /ingest и /query эндпоинтов
-    default_embedding_model: str = "deepvk/USER-bge-m3"
+    default_embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     # Стратегия чанкинга: "paragraph" или "recursive"
     chunking_strategy: Literal["paragraph", "recursive"] = "paragraph"
