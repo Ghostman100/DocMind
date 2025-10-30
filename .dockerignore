@@ -1,0 +1,49 @@
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+INSTALL.md
+README.md
+CLAUDE.md
+plan.txt
+
+# Test files
+test.docx
+test2.docx
+*.docx
+*.pdf
+
+# Environment
+.env
+.env.example
+
+# Poetry
+poetry.lock
+
+# Cache
+.cache/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
