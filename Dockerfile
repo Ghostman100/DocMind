@@ -1,5 +1,5 @@
 # Multi-stage build для уменьшения размера образа
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,11 +12,18 @@ WORKDIR /app
 # Копирование файлов зависимостей
 COPY requirements.txt .
 
-# Установка Python зависимостей
+# Установка PyTorch CPU-only (значительно меньше размер, чем с CUDA)
+RUN pip install --no-cache-dir --user \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Установка остальных зависимостей (пропускаем уже установленные torch пакеты)
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Финальный образ
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Установка необходимых системных библиотек для sentence-transformers
 RUN apt-get update && apt-get install -y --no-install-recommends \
