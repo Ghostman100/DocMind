@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # Модель по умолчанию для /ingest и /query эндпоинтов
     default_embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    default_vector_name: str = "fast-paraphrase-multilingual-minilm-l12-v2"
 
     # Стратегия чанкинга: "paragraph" или "recursive"
     chunking_strategy: Literal["paragraph", "recursive"] = "paragraph"

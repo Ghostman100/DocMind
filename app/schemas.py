@@ -79,7 +79,7 @@ class QueryRequest(BaseModel):
 class SearchResult(BaseModel):
     """Один результат поиска"""
 
-    text: str = Field(..., description="Текстовое содержимое чанка")
+    document: str = Field(..., description="Текстовое содержимое чанка")
     score: float = Field(..., description="Оценка схожести (0-1)")
     metadata: Dict[str, Any] = Field(
         default_factory=dict,

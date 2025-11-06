@@ -8,7 +8,7 @@ class ParagraphChunker(BaseChunker):
     Разбивает текст по абзацам (разделенным двойными переносами строк)
     """
 
-    def __init__(self, min_chunk_length: int = 10):
+    def __init__(self, min_chunk_length: int = 500):
         """
         Args:
             min_chunk_length: Минимальная длина чанка в символах
@@ -29,22 +29,23 @@ class ParagraphChunker(BaseChunker):
         paragraphs = re.split(r'\n\s*\n', text)
 
         chunks = []
+        cleaned = ''
         for i, paragraph in enumerate(paragraphs):
             # Очистить абзац
-            cleaned = self._clean_text(paragraph)
+            cleaned += self._clean_text(paragraph)
 
             # Пропустить очень короткие абзацы
-            if len(cleaned) < self.min_chunk_length:
-                continue
+            if len(cleaned) > self.min_chunk_length:
 
-            chunk = Chunk(
-                text=cleaned,
-                index=i,
-                metadata={
-                    "type": "paragraph",
-                    "char_count": len(cleaned)
-                }
-            )
-            chunks.append(chunk)
+                chunk = Chunk(
+                    text=cleaned,
+                    index=i,
+                    metadata={
+                        "type": "paragraph",
+                        "char_count": len(cleaned)
+                    }
+                )
+                chunks.append(chunk)
+                cleaned = ''
 
         return chunks

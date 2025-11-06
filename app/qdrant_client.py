@@ -96,7 +96,7 @@ class QdrantService:
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid4())
             payload = {
-                "text": chunk,
+                "document": chunk,
                 "chunk_index": i,
                 "document_id": document_id,
                 "document_name": document_name,
@@ -110,7 +110,7 @@ class QdrantService:
 
             point = PointStruct(
                 id=point_id,
-                vector={model_name: embedding.tolist()},
+                vector={settings.default_vector_name: embedding.tolist()},
                 payload=payload
             )
             points.append(point)
@@ -158,7 +158,7 @@ class QdrantService:
         # Поиск в Qdrant с фильтрацией по document_id
         results = self.client.query_points(
             collection_name=settings.collection_name,
-            using=model_name,
+            using=settings.default_vector_name,
             query=query_embedding.tolist(),
             limit=top_k,
             query_filter=Filter(
@@ -176,11 +176,11 @@ class QdrantService:
         for result in results:
             # print(r)
             formatted_results.append({
-                "text": result.payload.get("text", ""),
+                "document": result.payload.get("document", ""),
                 "score": result.score,
                 "metadata": {
                     k: v for k, v in result.payload.items()
-                    if k != "text"
+                    if k != "document"
                 }
             })
 

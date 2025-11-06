@@ -224,7 +224,7 @@ async def query_documents(request: QueryRequest):
         # Форматировать результаты
         search_results = [
             SearchResult(
-                text=result["text"],
+                document=result["document"],
                 score=result["score"],
                 metadata=result["metadata"]
             )
