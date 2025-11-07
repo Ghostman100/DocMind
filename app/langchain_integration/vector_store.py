@@ -116,32 +116,31 @@ class LangChainVectorStoreService:
         """
         vector_store = self.get_vector_store()
 
-        # LangChain использует retriever для фильтрации
-        retriever = vector_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={
-                "k": top_k,
-                "filter": Filter(
-                    must=[
-                        FieldCondition(
-                            key="document_id",
-                            match=MatchValue(value=document_id)
-                        )
-                    ]
+        # Использовать similarity_search_with_score для получения реальных score
+        # LangChain хранит метаданные в payload.metadata, поэтому используем "metadata.document_id"
+        search_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="metadata.document_id",
+                    match=MatchValue(value=document_id)
                 )
-            }
+            ]
         )
 
-        # Выполнить поиск
-        documents = retriever.invoke(query)
+        # Выполнить поиск с score
+        documents_with_scores = vector_store.similarity_search_with_score(
+            query=query,
+            k=top_k,
+            filter=search_filter
+        )
 
         # Преобразовать в формат результатов
         results = []
-        for doc in documents:
+        for doc, score in documents_with_scores:
             results.append({
                 "page_content": doc.page_content,
                 "metadata": doc.metadata,
-                "score": doc.metadata.get("score", 0.0)  # Score может быть в metadata
+                "score": float(score)  # Score от Qdrant (cosine distance)
             })
 
         return results
@@ -162,12 +161,13 @@ class LangChainVectorStoreService:
             Список всех чанков документа
         """
         # Используем прямой API Qdrant для получения всех точек с фильтром
+        # LangChain хранит метаданные в payload.metadata, поэтому используем "metadata.document_id"
         scroll_result = self.client.scroll(
             collection_name=self.collection_name,
             scroll_filter=Filter(
                 must=[
                     FieldCondition(
-                        key="document_id",
+                        key="metadata.document_id",
                         match=MatchValue(value=document_id)
                     )
                 ]
@@ -180,16 +180,18 @@ class LangChainVectorStoreService:
         points, _ = scroll_result
 
         # Преобразовать в формат документов
+        # LangChain хранит текст в "page_content", а метаданные в "metadata.*"
         results = []
         for point in points:
             payload = point.payload or {}
+            metadata = payload.get("metadata", {})
             results.append({
-                "page_content": payload.get("document", ""),
+                "page_content": payload.get("page_content", ""),
                 "metadata": {
-                    "chunk_index": payload.get("chunk_index", 0),
-                    "document_id": payload.get("document_id"),
-                    "document_name": payload.get("document_name"),
-                    "upload_timestamp": payload.get("upload_timestamp")
+                    "chunk_index": metadata.get("chunk_index", 0),
+                    "document_id": metadata.get("document_id"),
+                    "document_name": metadata.get("document_name"),
+                    "upload_timestamp": metadata.get("upload_timestamp")
                 }
             })
 

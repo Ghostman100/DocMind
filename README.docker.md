@@ -36,7 +36,7 @@ docker run -d \
 ```bash
 docker run -d \
   --name docmind \
-  -p 127.0.0.1:8001:8000 \
+  -p 127.0.0.1:8000:8000 \
   --env-file .env \
   -v $(pwd)/app:/app/app \
   -v model_cache:/home/appuser/.cache \
