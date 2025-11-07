@@ -21,6 +21,22 @@ from .embeddings import get_embedding_registry
 from .chunking import ParagraphChunker, RecursiveChunker
 from .scripts.doc_to_text import extract_text_from_file
 
+# LangChain интеграция
+from .langchain_integration.schemas import (
+    LangChainIngestRequest,
+    LangChainIngestResponse,
+    LangChainQueryRequest,
+    LangChainQueryResponse,
+    LangChainSearchResult,
+    SummarizeRequest,
+    SummarizeResponse,
+    ExtractPointsRequest,
+    ExtractPointsResponse,
+    ExtractedPoint,
+)
+from .langchain_integration.vector_store import get_langchain_vector_store
+from .langchain_integration.summarizer import summarize_document, extract_points_from_document
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -330,6 +346,291 @@ async def test_ingest_document():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process test.docx: {str(e)}"
         )
+
+
+@app.post("/test_langchain", response_model=LangChainIngestResponse, tags=["LangChain"])
+async def test_ingest_langchain():
+    """
+    Тестовый endpoint для загрузки test.docx через LangChain
+
+    Извлекает текст из test.docx и загружает его в систему через LangChain
+    """
+    try:
+        # Извлечь текст из test.docx
+        text = extract_text_from_file('test.docx')
+
+        if not text or not text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to extract text from test.docx or file is empty"
+            )
+
+        # Создать запрос для LangChain ingest
+        ingest_request = LangChainIngestRequest(
+            document_name="test.docx",
+            text=text
+        )
+
+        # Вызвать LangChain endpoint для загрузки
+        return await langchain_ingest_document(ingest_request)
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="test.docx file not found"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in test_ingest_langchain: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process test.docx via LangChain: {str(e)}"
+        )
+
+
+# ============================================================================
+# LangChain Endpoints
+# ============================================================================
+
+@app.post("/langchain/ingest", response_model=LangChainIngestResponse, tags=["LangChain"])
+async def langchain_ingest_document(request: LangChainIngestRequest):
+    """
+    Загрузить документ в систему через LangChain
+
+    Этот endpoint использует LangChain RecursiveCharacterTextSplitter
+    для разбиения текста и QdrantVectorStore для сохранения.
+    """
+    try:
+        # Генерировать UUID для документа
+        document_id = str(uuid.uuid4())
+
+        logger.info(f"[LangChain] Ingesting document: {request.document_name}")
+        logger.info(f"[LangChain] Document ID: {document_id}")
+        logger.info(f"[LangChain] Document length: {len(request.text)} characters")
+
+        # Использовать LangChain text splitter
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+            separators=["\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " ", ""]
+        )
+
+        texts = text_splitter.split_text(request.text)
+        logger.info(f"[LangChain] Created {len(texts)} chunks")
+
+        if not texts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No chunks were created from the document. The text might be too short."
+            )
+
+        # Загрузить в Qdrant через LangChain
+        langchain_service = get_langchain_vector_store()
+        chunks_count = langchain_service.ingest_texts(
+            texts=texts,
+            document_id=document_id,
+            document_name=request.document_name
+        )
+
+        logger.info(f"[LangChain] Successfully ingested {chunks_count} chunks for document {document_id}")
+
+        return LangChainIngestResponse(
+            success=True,
+            message=f"Successfully ingested {chunks_count} chunks via LangChain",
+            chunks_count=chunks_count,
+            document_id=document_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[LangChain] Error ingesting document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to ingest document via LangChain: {str(e)}"
+        )
+
+
+@app.post("/langchain/query", response_model=LangChainQueryResponse, tags=["LangChain"])
+async def langchain_query_documents(request: LangChainQueryRequest):
+    """
+    Запросить документы используя LangChain retriever
+
+    Этот endpoint использует LangChain QdrantVectorStore.as_retriever()
+    для поиска с фильтрацией по document_id.
+    """
+    try:
+        logger.info(f"[LangChain] Querying document: {request.document_id}")
+        logger.info(f"[LangChain] Query: {request.query}")
+
+        # Поиск через LangChain
+        langchain_service = get_langchain_vector_store()
+        results = langchain_service.search(
+            document_id=request.document_id,
+            query=request.query,
+            top_k=request.top_k
+        )
+
+        logger.info(f"[LangChain] Found {len(results)} results")
+
+        # Форматировать результаты
+        search_results = [
+            LangChainSearchResult(
+                page_content=result["page_content"],
+                score=result.get("score", 0.0),
+                metadata=result["metadata"]
+            )
+            for result in results
+        ]
+
+        return LangChainQueryResponse(
+            success=True,
+            results=search_results,
+            query=request.query,
+            document_id=request.document_id
+        )
+
+    except Exception as e:
+        logger.error(f"[LangChain] Error querying documents: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to query documents via LangChain: {str(e)}"
+        )
+
+
+@app.post("/langchain/summarize", response_model=SummarizeResponse, tags=["LangChain"])
+async def langchain_summarize_document(request: SummarizeRequest):
+    """
+    Создать сокращенную версию документа через суммаризацию
+
+    Этот endpoint извлекает все чанки документа и использует
+    LangChain summarization chains для создания резюме.
+
+    Требуется настройка LLM_API_KEY в .env файле.
+    """
+    try:
+        # Проверить что LangChain включен и API ключ настроен
+        if not settings.langchain_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LangChain functionality is disabled. Set LANGCHAIN_ENABLED=true in .env"
+            )
+
+        if not settings.llm_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LLM API key is not configured. Set LLM_API_KEY in .env"
+            )
+
+        logger.info(f"[LangChain] Summarizing document: {request.document_id}")
+        logger.info(f"[LangChain] Strategy: {request.strategy}")
+
+        # Выполнить суммаризацию
+        result = summarize_document(
+            document_id=request.document_id,
+            strategy=request.strategy,
+            max_chunks=request.max_chunks
+        )
+
+        logger.info(f"[LangChain] Summarization completed")
+
+        return SummarizeResponse(
+            success=True,
+            summary=result["summary"],
+            document_id=result["document_id"],
+            chunks_processed=result["chunks_processed"],
+            strategy=result["strategy"]
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"[LangChain] Validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[LangChain] Error summarizing document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to summarize document: {str(e)}"
+        )
+
+
+@app.post("/langchain/extract_points", response_model=ExtractPointsResponse, tags=["LangChain"])
+async def langchain_extract_points(request: ExtractPointsRequest):
+    """
+    Извлечь ключевые пункты из документа по заданным темам
+
+    Этот endpoint выполняет семантический поиск по каждой теме
+    в рамках документа и опционально суммаризует найденные фрагменты.
+
+    Требуется настройка LLM_API_KEY в .env файле (только если summarize=True).
+    """
+    try:
+        # Проверить настройки только если требуется суммаризация
+        if request.summarize:
+            if not settings.langchain_enabled:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="LangChain functionality is disabled. Set LANGCHAIN_ENABLED=true in .env"
+                )
+
+            if not settings.llm_api_key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="LLM API key is not configured. Set LLM_API_KEY in .env"
+                )
+
+        logger.info(f"[LangChain] Extracting points from document: {request.document_id}")
+        logger.info(f"[LangChain] Topics: {len(request.topics)}")
+        logger.info(f"[LangChain] Summarize: {request.summarize}")
+
+        # Выполнить извлечение
+        result = extract_points_from_document(
+            document_id=request.document_id,
+            topics=request.topics,
+            chunks_per_topic=request.chunks_per_topic,
+            summarize=request.summarize
+        )
+
+        logger.info(f"[LangChain] Extraction completed")
+
+        # Преобразовать в Pydantic модели
+        extracted_points = [
+            ExtractedPoint(
+                topic=point["topic"],
+                relevant_chunks=point["relevant_chunks"],
+                summary=point.get("summary")
+            )
+            for point in result["extracted_points"]
+        ]
+
+        return ExtractPointsResponse(
+            success=True,
+            document_id=result["document_id"],
+            extracted_points=extracted_points,
+            total_chunks_retrieved=result["total_chunks_retrieved"]
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"[LangChain] Validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[LangChain] Error extracting points: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to extract points: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     import uvicorn

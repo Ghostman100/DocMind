@@ -27,3 +27,18 @@ docker run -d \
   -e QDRANT_URL=http://qdrant:6333 \
   docmind-app
 ```
+
+
+### 3. Запуск приложения local
+
+**С использованием существующего .env файла:**
+
+```bash
+docker run -d \
+  --name docmind \
+  -p 127.0.0.1:8001:8000 \
+  --env-file .env \
+  -v $(pwd)/app:/app/app \
+  -v model_cache:/home/appuser/.cache \
+  docmind-app
+```

@@ -18,4 +18,12 @@ torchvision==0.20.1
 torchaudio==2.5.1
 
 # Научные библиотеки
-numpy==2.2.1
+numpy==1.26.4
+
+# LangChain интеграция
+langchain==0.3.7
+langchain-core==0.3.15
+langchain-qdrant==0.2.0
+langchain-community==0.3.5
+langchain-text-splitters==0.3.2
+langchain-openai==0.2.5

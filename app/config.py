@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # Настройки LangChain интеграции
+    langchain_enabled: bool = False  # Включить LangChain функционал
+    llm_provider: Literal["openai", "anthropic"] = "openai"
+    llm_api_key: str | None = None  # API ключ для LLM (OpenAI или Anthropic)
+    llm_base_url: str | None = None  # Custom base URL для LLM API (например, для локальных моделей)
+    llm_model: str = "gpt-4o-mini"  # Модель для суммаризации
+    llm_temperature: float = 0.0  # Температура для LLM (0 = детерминированный)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
