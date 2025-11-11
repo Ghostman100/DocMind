@@ -113,6 +113,10 @@ class HealthResponse(BaseModel):
         description="Модель по умолчанию"
     )
     chunking_strategy: str
+    langchain_debug: bool = Field(
+        ...,
+        description="Статус режима отладки LangChain"
+    )
 
 
 class EmbedRequest(BaseModel):

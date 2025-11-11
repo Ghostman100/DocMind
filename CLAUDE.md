@@ -127,12 +127,30 @@ The system now includes **parallel LangChain-powered functionality** alongside t
 
 LangChain features require additional configuration in `.env`:
 - **LANGCHAIN_ENABLED**: Set to `true` to enable LangChain endpoints that require LLM
+- **LANGCHAIN_DEBUG**: Set to `true` to enable detailed debug output (shows prompts, LLM responses, intermediate steps). Default: `false`
 - **LLM_PROVIDER**: "openai" or "anthropic"
 - **LLM_API_KEY**: API key for the LLM provider (required for summarization)
 - **LLM_MODEL**: Model name (default: "gpt-4o-mini")
 - **LLM_TEMPERATURE**: Temperature for LLM responses (default: 0.0 for deterministic)
 
 Note: `/langchain/ingest` and `/langchain/query` work without LLM API key. Only summarization and extraction (with summarize=True) require LLM configuration.
+
+### Debug Mode
+
+When `LANGCHAIN_DEBUG=true` is set, the system will output detailed information about LangChain operations including:
+- All prompts sent to the LLM
+- Complete LLM responses
+- Intermediate steps in chains (map/reduce/refine operations)
+- Token usage and timing information
+- Embedding and retrieval operations
+
+This is useful for:
+- Understanding how the system processes your documents
+- Debugging summarization and extraction issues
+- Optimizing prompts and strategies
+- Monitoring LLM API usage
+
+The debug status is visible in the `/health` endpoint response.
 
 ## API Endpoints
 
@@ -148,7 +166,8 @@ Returns system status including Qdrant connectivity and loaded models.
   "qdrant_connected": true,
   "embedding_models": ["model1", "model2", "model3"],
   "default_embedding_model": "model1",
-  "chunking_strategy": "paragraph"
+  "chunking_strategy": "paragraph",
+  "langchain_debug": false
 }
 ```
 

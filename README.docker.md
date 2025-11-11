@@ -40,5 +40,6 @@ docker run -d \
   --env-file .env \
   -v $(pwd)/app:/app/app \
   -v model_cache:/home/appuser/.cache \
+  --network host \
   docmind-app
 ```

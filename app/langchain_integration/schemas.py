@@ -100,31 +100,26 @@ class LangChainQueryResponse(BaseModel):
 
 
 class SummarizeRequest(BaseModel):
-    """Модель запроса для суммаризации документа"""
+    """Модель запроса для суммаризации текста"""
 
-    document_id: str = Field(
+    text: str = Field(
         ...,
-        description="Идентификатор документа для суммаризации (UUID)",
+        description="Текст для суммаризации",
         min_length=1
     )
-    strategy: Literal["stuff", "map_reduce", "refine"] = Field(
-        default="map_reduce",
-        description="Стратегия суммаризации: stuff (для коротких), map_reduce (для длинных), refine (итеративная)"
-    )
-    max_chunks: int = Field(
-        default=100,
-        description="Максимальное количество чанков для обработки",
-        ge=1,
-        le=1000
+    target_tokens: int = Field(
+        default=70000,
+        description="Целевое количество токенов в резюме",
+        ge=1000,
+        le=100000
     )
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
-                    "document_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "strategy": "map_reduce",
-                    "max_chunks": 100
+                    "text": "Очень длинный текст для суммаризации...",
+                    "target_tokens": 70000
                 }
             ]
         }
@@ -135,10 +130,11 @@ class SummarizeResponse(BaseModel):
     """Модель ответа суммаризации"""
 
     success: bool
-    summary: str = Field(..., description="Суммаризованный текст документа")
-    document_id: str = Field(..., description="Идентификатор документа")
-    chunks_processed: int = Field(..., description="Количество обработанных чанков")
-    strategy: str = Field(..., description="Использованная стратегия")
+    summary: str = Field(..., description="Суммаризованный текст")
+    input_tokens: int = Field(..., description="Количество токенов в исходном тексте")
+    output_tokens: int = Field(..., description="Количество токенов в резюме")
+    parts_processed: int = Field(..., description="Количество частей, на которые был разделен текст")
+    strategy_used: str = Field(..., description="Использованная стратегия (stuff или multi-part stuff)")
 
 
 class ExtractPointsRequest(BaseModel):
@@ -204,3 +200,21 @@ class ExtractPointsResponse(BaseModel):
         ...,
         description="Общее количество извлеченных чанков"
     )
+
+
+class SummarizeWithAnalysisResponse(BaseModel):
+    """Модель ответа суммаризации с анализом"""
+
+    success: bool
+    summary: str = Field(..., description="Суммаризованный текст")
+    analysis: str = Field(..., description="Результат анализа с помощью PROMPT")
+    summary_tokens: int = Field(..., description="Количество токенов в резюме")
+    analysis_input_tokens: int = Field(..., description="Количество токенов на входе анализа")
+    analysis_output_tokens: int = Field(..., description="Количество токенов в результате анализа")
+    parts_processed: int = Field(..., description="Количество частей, на которые был разделен текст")
+    strategy_used: str = Field(..., description="Использованная стратегия суммаризации")
+    # Время выполнения
+    extraction_time_seconds: float = Field(..., description="Время извлечения текста из документа (секунды)")
+    summarization_time_seconds: float = Field(..., description="Время суммаризации (секунды)")
+    analysis_time_seconds: float = Field(..., description="Время анализа с PROMPT (секунды)")
+    total_time_seconds: float = Field(..., description="Общее время выполнения (секунды)")

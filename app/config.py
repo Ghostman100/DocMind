@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # Настройки LangChain интеграции
     langchain_enabled: bool = False  # Включить LangChain функционал
+    langchain_debug: bool = False  # Режим отладки LangChain (подробный вывод всех операций)
     llm_provider: Literal["openai", "anthropic"] = "openai"
     llm_api_key: str | None = None  # API ключ для LLM (OpenAI или Anthropic)
     llm_base_url: str | None = None  # Custom base URL для LLM API (например, для локальных моделей)
